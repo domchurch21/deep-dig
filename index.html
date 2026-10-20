@@ -209,27 +209,34 @@ return path[Math.max(0,Math.min(path.length-2,Math.floor(path.length*.58)))];
 }
 let relicPosition=-1,pendingRelic=null,newRelic=null,chestPosition=-1,pendingChest=false,chestFlashUntil=0;
 
-function cheapestRoute(n,chest=-1,includeChest=false){
- const rows=MAPS[n],start=3,goal=(H-1)*W+3,dist=Array(W*H).fill(Infinity),done=new Set();
- dist[start]=0;
- for(let k=0;k<W*H;k++){
-  let v=-1;for(let i=0;i<W*H;i++)if(!done.has(i)&&(v<0||dist[i]<dist[v]))v=i;
-  if(v<0||!Number.isFinite(dist[v]))break;done.add(v);if(v===goal)break;
-  const xx=v%W,yy=Math.floor(v/W);
-  for(const [a,b] of [[xx-1,yy],[xx+1,yy],[xx,yy+1]]){
-   if(a<0||a>=W||b>=H)continue;
-   const j=b*W+a,t=TYPES[rows[b][a]];if(blocked(t))continue;
-   const surcharge=j===chest?2:0,nd=dist[v]+cost(t)+surcharge;
-   if(nd<dist[j])dist[j]=nd;
+// A route may move down or in one horizontal direction per row.
+// This ensures every potion is counted at most once.
+function safeChestRoute(n,chest){
+ const rows=MAPS[n],goal=(H-1)*W+3,queue=[[3,START,0,0]],seen=new Set(['3|'+START+'|0|0']);
+ for(let head=0;head<queue.length;head++){
+  const [pos,power,found,dir]=queue[head];
+  if(pos===goal&&found)return true;
+  const xx=pos%W,yy=Math.floor(pos/W);
+  for(const [nx,ny,nd] of [[xx-1,yy,-1],[xx+1,yy,1],[xx,yy+1,0]]){
+   if(nx<0||nx>=W||ny>=H||(nd&&dir&&nd!==dir))continue;
+   const next=ny*W+nx,t=TYPES[rows[ny][nx]];
+   if(blocked(t))continue;
+   const spend=cost(t)+(next===chest?2:0);
+   if(power<spend)continue;
+   const nextPower=Math.min(MAX,power-spend+(t==='energy'?3:0));
+   const nextFound=found||next===chest?1:0;
+   const nextDir=nd===0?0:nd;
+   const key=next+'|'+nextPower+'|'+nextFound+'|'+nextDir;
+   if(!seen.has(key)){seen.add(key);queue.push([next,nextPower,nextFound,nextDir])}
   }
  }
- return dist[goal];
+ return false;
 }
 function chestForLevel(n){
  const rows=MAPS[n],excluded=relicPathPosition(n),candidates=[];
  for(let yy=1;yy<H-1;yy++)for(let xx=0;xx<W;xx++){
   const i=yy*W+xx;
-  if(rows[yy][xx]==='g'&&i!==excluded&&Math.abs(xx-3)>=2&&cheapestRoute(n,i)<=START)candidates.push(i);
+  if(rows[yy][xx]==='g'&&i!==excluded&&Math.abs(xx-3)>=2&&safeChestRoute(n,i))candidates.push(i);
  }
  return candidates.length?candidates[Math.floor(n*3%candidates.length)]:-1;
 }

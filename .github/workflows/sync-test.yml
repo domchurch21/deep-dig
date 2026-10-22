@@ -1,0 +1,29 @@
+name: Sync Deep Dig TEST to LIVE
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sync-test.yml'
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Copy complete TEST snapshot into LIVE
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch main https://github.com/domchurch21/deep-dig-test.git /tmp/deep-dig-test
+          cp /tmp/deep-dig-test/index.html ./index.html
+          rm -rf ./assets
+          cp -a /tmp/deep-dig-test/assets ./assets
+          rm -f .github/workflows/sync-test.yml
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Sync LIVE with complete TEST snapshot" || exit 0
+          git push origin HEAD:main
